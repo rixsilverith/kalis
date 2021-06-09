@@ -21,11 +21,11 @@ where `WIFI_ESSID` is your network name, `WIFI_KEY` your network passphrase and 
 of your network adapter, which can be found by running `ip link show | grep -v "lo"`. This `WIFI_INTERFACE` should look something 
 similar to `wlan0`.
 
-Download the script, edit the `kalis.sh` with your own preferences and run the script.
+Download the script, edit the `kalis.conf` with your own preferences and run the script.
 
 ```bash
 curl -sL https://raw.githubusercontent.com/rixsilverith/kalis/master/bootstrap.sh | bash
-vim kalis.sh
+vim kalis.conf
 ./kalis.sh
 ```
 Finally, `reboot` the system to end the installation process.

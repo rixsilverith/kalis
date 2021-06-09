@@ -10,7 +10,7 @@ set -uo pipefail
 #   loadkeys [keymap]
 #   iwctl --passphrase "[WIFI_KEY]" station [WIFI_INTERFACE] connect "[WIFI_ESSID]"
 #   curl https://raw.githubusercontent.com/rixsilverith/kalis/bootstrap.sh | bash
-#   vim kalis.sh
+#   vim kalis.conf
 #   ./kalis.sh
 #
 # For more information, see https://github.com/rixsilverith/kalis/master/blob/README.md
