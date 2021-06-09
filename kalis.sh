@@ -51,7 +51,12 @@ ROOT_PASSWORD=""
 USER_NAME=""
 USER_PASSWORD=""
 
+cyan='\033[1;36m'
+reset='\033[0m'
+
 _info() { echo -e "\033[1;36m==>\033[0m $1"; }
+_note() { echo -e "\033[1;36m->\033[0m $1"; }
+_enote() { echo -e "\033[1;31m->\033[0m $1"; }
 
 pacman_install() { 
     packages=($1)
@@ -68,6 +73,69 @@ echo -e "\033[1;33mWarning! This script is in an early development stage and may
 echo -e "\033[1;33mthe worst case scenario could lead to data loss. Proceed at your own risk.\033[0m\n"
 read -p "Do you want to continue [y/N] " yn
 
+case $yn in
+    [Yy]* ) ;;
+    [Nn]* ) exit ;;
+    * ) exit ;;
+esac
+unset yn
+
+# Check variables
+echo -e "\nThe following configuration will be used to autoinstall the system. Please, check everything"
+echo -e "is fine before continuing.\n\n"
+
+if [ -n $DEVICE ]; then 
+    _note "The system will be installed on the ${cyan}$DEVICE${reset} device"
+else
+    _enote "No installation device was specified. Aborting installation...\n"
+    exit 1
+fi
+
+if [ -n $BOOT_DIRECTORY ]; then 
+    _note "Boot/EFI partition will be mounted on the ${cyan}$BOOT_DIRECTORY${reset} directory"
+else
+    _enote "No mount directory was specified for the boot partition. Aborting installation...\n"
+    exit 1
+fi
+
+_note "The swap partition will be ${cyan}$SWAP_PARTITION_SIZE MiB${reset} large"
+
+if [ -z $WIFI_INTERFACE ]; then
+    _note "No wireless network connection will be set up by default"
+else
+    _note "A wireless network connection will be set up with ESSID ${cyan}$WIFI_ESSID${reset} through the ${cyan}$WIFI_INTERFACE${reset} interface"
+fi
+
+if [ $REFLECTOR == true ]; then
+    _note "${cyan}Reflector enabled${reset} for faster download times"
+else
+    _note "${cyan}Reflector disabled${reset}. This may increase the time needed to download the system"
+fi
+
+if [ -n $TIMEZONE ]; then
+    _note "Timezone will be set to ${cyan}$TIMEZONE${cyan}"
+else
+    _enote "No timezone specified. ${cyan}/usr/share/zoneinfo/Europe/Madrid${reset} will be used by default"
+fi
+
+echo -en "${cyan}->${reset} The following list of locales will be generated: "
+for locale in "${LOCALES[@]}"; do
+    echo -en "${cyan}$locale${reset}  "
+done
+
+echo -en "${cyan}->${reset} The following locale configuration will be set up: "
+for locale_conf in "${LOCALE_CONF[@]}"; do
+    echo -en "${cyan}$locale_conf${reset}  "
+done
+
+if [ -n "$HOSTNAME" ]; then
+    _note "The hostname for the machine will be set to ${cyan}$HOSTNAME${cyan}"
+else
+    _enote "No hostname was specified. Aborting installation...\n"
+    exit 1
+fi
+
+read -p "\nEverything fine? Proceed with the installation? [y/N] " yn
 case $yn in
     [Yy]* ) ;;
     [Nn]* ) exit ;;
