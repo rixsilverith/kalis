@@ -15,41 +15,8 @@ set -uo pipefail
 #
 # For more information, see https://github.com/rixsilverith/kalis/master/blob/README.md
 
-# Keyboard layout to be set with the loadkeys command
-KEYS="es"
-
-# Device for the installation. Run the `lsblk` command to get a list of all the available
-# disks in your system.
-DEVICE="/dev/nvme0n1"
-PARTITION_BOOT="${DEVICE}p1"
-PARTITION_SWAP="${DEVICE}p2"
-PARTITION_ROOT="${DEVICE}p3"
-BOOT_DIRECTORY="/efi"
-
-# Swap partition size in mebibytes. 
-SWAP_PARTITION_SIZE="2048"
-
-# Wifi configuration
-WIFI_INTERFACE=""
-WIFI_ESSID=""
-WIFI_KEY=""
-
-# Pacman stuff
-REFLECTOR="false"
-REFLECTOR_COUNTRIES=("Spain")
-PACMAN_MIRROR="https://mirrors.kernel.org/archlinux/\$repo/os/\$arch"
-
-# Localization
-TIMEZONE="/usr/share/zoneinfo/Europe/Madrid"
-LOCALES=("en_GB.UTF-8 UTF-8")
-LOCALE_CONF=("LANG=en_GB.UTF-8")
-KEYMAP="KEYMAP=en"
-
-# System and user credentials
-HOSTNAME=""
-ROOT_PASSWORD=""
-USER_NAME=""
-USER_PASSWORD=""
+# Source configuration file
+source "kalis.conf"
 
 cyan='\033[1;36m'
 reset='\033[0m'
@@ -68,10 +35,10 @@ pacman_install() {
 }
 
 # Welcome and warning message
-echo -e "Hey! Welcome to \033[1;36mKalis (Kustom Arch Linux Install Script)\033[0m!\n"
-echo -e "\033[1;33mWarning! This script is in an early development stage and may have some bugs that in"
-echo -e "\033[1;33mthe worst case scenario could lead to data loss. Proceed at your own risk.\033[0m\n"
-read -p "Do you want to continue [y/N] " yn
+echo -e "\nHey! Welcome to \033[1;36mKalis (Kustom Arch Linux Install Script)\033[0m!\n"
+echo -e "\033[1;33mWarning!\033[0m This script is in an early development stage and may have some bugs that in"
+echo -e "the worst case scenario could lead to data loss. Proceed at your own risk.\n"
+read -p "Do you want to continue anyways [y/N] " yn
 
 case $yn in
     [Yy]* ) ;;
