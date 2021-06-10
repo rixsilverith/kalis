@@ -15,8 +15,11 @@ set -uo pipefail
 #
 # For more information, see https://github.com/rixsilverith/kalis/master/blob/README.md
 
+CONF_FILE="kalis.conf"
+LOG_FILE="kalis.log"
+
 # Source configuration file
-source "kalis.conf"
+source $CONF_FILE
 
 cyan='\033[1;36m'
 reset='\033[0m'
@@ -27,7 +30,7 @@ _enote() { echo -e "\033[1;31m->\033[0m $1"; }
 
 pacman_install() { 
     packages=($1)
-    arch-chroot /mnt pacman -Syu --noconfirm --needed ${packages[@]} 
+    arch-chroot /mnt pacman -Syu --noconfirm --needed ${packages[@]} &> $LOG_FILE
     if [ $? == 1 ];
         echo -e "\033[1;31m==>\033[0m Error installing packages: \033[1;36m${packages[@]}\033[0m"
         exit 1
@@ -35,7 +38,7 @@ pacman_install() {
 }
 
 # Welcome and warning message
-echo -e "\nHey! Welcome to \033[1;36mKalis (Kustom Arch Linux Install Script)\033[0m!\n"
+echo -e "\nHey! Welcome to ${cyan}Kalis (Kustom Arch Linux Install Script)${reset}!\n"
 echo -e "\033[1;33mWarning!\033[0m This script is in an early development stage and may have some bugs that in"
 echo -e "the worst case scenario could lead to data loss. Proceed at your own risk.\n"
 read -p "Do you want to continue anyways [y/N] " yn
@@ -49,7 +52,7 @@ unset yn
 
 # Check variables
 echo -e "\nThe following configuration will be used to autoinstall the system. Please, check everything"
-echo -e "is fine before continuing.\n\n"
+echo -e "is fine before continuing.\n"
 
 if [ -n $DEVICE ]; then 
     _note "The system will be installed on the ${cyan}$DEVICE${reset} device"
@@ -74,9 +77,9 @@ else
 fi
 
 if [ $REFLECTOR == true ]; then
-    _note "${cyan}Reflector enabled${reset} for faster download times"
+    _note "${cyan}Reflector is enabled${reset} for faster download times"
 else
-    _note "${cyan}Reflector disabled${reset}. This may increase the time needed to download the system"
+    _note "${cyan}Reflector is disabled${reset}. This may increase the time needed to download the system"
 fi
 
 if [ -n $TIMEZONE ]; then
@@ -90,24 +93,43 @@ for locale in "${LOCALES[@]}"; do
     echo -en "${cyan}$locale${reset}  "
 done
 
-echo -en "${cyan}->${reset} The following locale configuration will be set up: "
+echo -en "\n${cyan}->${reset} The following locale configuration will be set up: "
 for locale_conf in "${LOCALE_CONF[@]}"; do
     echo -en "${cyan}$locale_conf${reset}  "
 done
+echo
 
 if [ -n "$HOSTNAME" ]; then
-    _note "The hostname for the machine will be set to ${cyan}$HOSTNAME${cyan}"
+    _note "The hostname for the machine will be set to ${cyan}$HOSTNAME${reset}"
 else
     _enote "No hostname was specified. Aborting installation...\n"
     exit 1
 fi
 
-read -p "\nEverything fine? Proceed with the installation? [y/N] " yn
+echo
+read -p "Everything fine? Proceed with the installation? [y/N] " yn
 case $yn in
     [Yy]* ) ;;
     [Nn]* ) exit ;;
     * ) exit ;;
 esac
+unset yn
+echo
+
+# Initialize logging
+[ -f $LOG_FILE ] && rm -f $LOG_FILE && touch $LOG_FILE
+
+# Redirect execution trace output to log file
+exec 5>> $LOG_FILE
+PS4='+ $LINENO: ' 
+BASH_XTRACEFD="5" 
+
+# Copy stdout and stderr to log file
+exec > >(tee -a $LOG_FILE)
+exec 2> >(tee -a $LOG_FILE)
+
+# Enable execution trace for debugging
+set -o xtrace
 
 # Ensure UEFI mode
 if [ -d /sys/firmware/efi ]; then
@@ -131,15 +153,15 @@ if [ "$REFLECTOR" == "true" ]; then
     countries=()
     for country in "${REFLECTOR_COUNTRIES[@]}"; do countries+=(--country "${country}"); done
 
-    pacman -Sy --noconfirm reflector
+    pacman -Sy --noconfirm reflector &> $LOG_FILE
     reflector "${countries[@]}" --latest 25 --age 24 --protocol https --completion-percent 100 --sort rate \
-        --save /etc/pacman.d/mirrorlist
+        --save /etc/pacman.d/mirrorlist &> $LOG_FILE
 fi
 
 sed -i 's/#Color/Color/' /etc/pacman.conf
 sed -i 's/#TotalDownload/TotalDownload' /etc/pacman.conf
 
-pacstrap /mnt base base-devel linux linux-firmware
+pacstrap /mnt base base-devel linux linux-firmware &> $LOG_FILE
 
 sed -i 's/#Color/Color/' /mnt/etc/pacman.conf
 sed -i 's/#TotalDownload/TotalDownload/' /mnt/etc/pacman.conf
@@ -229,5 +251,5 @@ arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory=$BOOT_DIRECTOR
 arch-chroot /mnt grub-mkconfig -o "$BOOT_DIRECTORY/grub/grub.cfg"
 
 # Finished installation message
-echo -e "\n\033[1;32m==> Arch Linux installed successfully!\033[0m\n"
+echo -e "\n${cyan}Arch Linux installed successfully! :D${reset}\n"
 echo -e "Now, you may reboot your system\n"
