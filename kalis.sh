@@ -31,11 +31,13 @@ _enote() { echo -e "\033[1;31m->\033[0m $1"; }
 pacman_install() { 
     packages=($1)
     arch-chroot /mnt pacman -Syu --noconfirm --needed ${packages[@]} &> $LOG_FILE
-    if [ $? == 1 ];
+    if [ $? == 1 ]; then
         echo -e "\033[1;31m==>\033[0m Error installing packages: \033[1;36m${packages[@]}\033[0m"
         exit 1
     fi
 }
+
+clear
 
 # Welcome and warning message
 echo -e "\nHey! Welcome to ${cyan}Kalis (Kustom Arch Linux Install Script)${reset}!\n"
@@ -117,7 +119,7 @@ unset yn
 echo
 
 # Initialize logging
-[ -f $LOG_FILE ] && rm -f $LOG_FILE && touch $LOG_FILE
+[[ -f $LOG_FILE ]] && rm -f $LOG_FILE
 
 # Redirect execution trace output to log file
 exec 5>> $LOG_FILE
@@ -132,7 +134,7 @@ exec 2> >(tee -a $LOG_FILE)
 set -o xtrace
 
 # Ensure UEFI mode
-if [ -d /sys/firmware/efi ]; then
+if [ -d /sys/firmware/efi/efivars ]; then
     _info "Installation booted in UEFI mode"
 else
     echo -e "\033[1;31m==>\033[0m Seems like the installation has been booted in legacy BIOS (or CMS) mode, which as of now"
@@ -143,6 +145,33 @@ fi
 # Clock synchronization
 _info "Updating the system clock"
 timedatectl set-ntp true
+
+# Device partitioning
+_info "Partitioning the installation device"
+efi_end=512MiB
+swap_end=$(( $efi_end + $SWAP_PARTITION_SIZE ))MiB
+
+parted -s $DEVICE mklabel gpt \
+    mkpart ESP fat32 1MiB ${efi_end} \
+    set 1 boot on \
+    set 1 esp on \
+    mkpart primary linux-swap ${efi_end} ${swap_end} \
+    mkpart primary ext4 ${swap_end} 100%
+
+wipefs $PARTITION_BOOT &> $LOG_FILE
+wipefs $PARTITION_SWAP &> $LOG_FILE
+wipefs $PARTITION_ROOT &> $LOG_FILE
+
+mkfs.vfat -F32 $PARTITION_BOOT &> $LOG_FILE
+mkswap $PARTITION_SWAP &> $LOG_FILE
+mkfs.ext4 $PARTITION_ROOT &> $LOG_FILE
+
+mounted_boot_dir="/mnt$BOOT_DIRECTORY"
+
+swapon $PARTITION_SWAP
+mount $PARTITION_ROOT /mnt
+mkdir $mounted_boot_dir
+mount $PARTITION_BOOT $mounted_boot_dir
 
 # Kernel and system installation
 _info "Installing the Linux kernel"
@@ -166,33 +195,6 @@ pacstrap /mnt base base-devel linux linux-firmware &> $LOG_FILE
 sed -i 's/#Color/Color/' /mnt/etc/pacman.conf
 sed -i 's/#TotalDownload/TotalDownload/' /mnt/etc/pacman.conf
 
-# Device partitioning
-_info "Partitioning the installation device"
-efi_end=512MiB
-swap_end=$(( $efi_end + $SWAP_PARTITION_SIZE ))MiB
-
-parted -s $DEVICE mklabel gpt \
-    mkpart ESP fat32 1MiB ${efi_end} \
-    set 1 boot on \
-    set 1 esp on \
-    mkpart primary linux-swap ${efi_end} ${swap_end} \
-    mkpart primary ext4 ${swap_end} 100%
-
-wipefs $PARTITION_BOOT
-wipefs $PARTITION_SWAP
-wipefs $PARTITION_ROOT
-
-mkfs.vfat -F32 $PARTITION_BOOT
-mkswap $PARTITION_SWAP
-mkfs.ext4 $PARTITION_ROOT
-
-mounted_boot_dir="/mnt$BOOT_DIRECTORY"
-
-swapon $PARTITION_SWAP
-mount $PARTITION_ROOT /mnt
-mkdir $mounted_boot_dir
-mount $PARTITION_BOOT $mounted_boot_dir
-
 # System configuration
 _info "Generating file system table"
 genfstab -U /mnt >> /mnt/etc/fstab
@@ -202,7 +204,6 @@ arch-chroot /mnt ln -sf $TIMEZONE /etc/localtime
 arch-chroot /mnt hwclock --systohc
 
 for locale in "${LOCALES[@]}"; do
-    sed -i "s/#$locale/$locale/" /etc/locale.gen
     sed -i "s/#$locale/$locale/" /mnt/etc/locale.gen
 done
 
@@ -210,8 +211,7 @@ for l_conf in "${LOCALE_CONF[@]}"; do
     echo -e "$l_conf" >> /mnt/etc/locale.conf
 done
 
-locale-gen
-arch-chroot /mnt locale-gen
+arch-chroot /mnt locale-gen &> $LOG_FILE
 
 _info "Setting up console keymap and hostname"
 echo $KEYMAP > /mnt/etc/vconsole.conf
@@ -224,21 +224,21 @@ arch-chroot /mnt cat <<EOF > /etc/hosts
 EOF
 
 _info "Configuring root password"
-printf "$ROOT_PASSWORD\n$ROOT_PASSWORD" | arch-chroot /mnt passwd
+printf "$ROOT_PASSWORD\n$ROOT_PASSWORD" | arch-chroot /mnt passwd &> $LOG_FILE
 
 # Network configuration
 _info "Configuring network"
 pacman_install "networkmanager"
-arch-chroot /mnt systemctl enable NetworkManager.service
+arch-chroot /mnt systemctl enable NetworkManager.service &> $LOG_FILE
 
 if [ -n "$WIFI_ESSID" ]; then
-    arch-chroot /mnt nmcli device wifi connect "$WIFI_ESSID" password "$WIFI_KEY"
+    arch-chroot /mnt nmcli device wifi connect "$WIFI_ESSID" password "$WIFI_KEY" &> $LOG_FILE
 fi
 
 # User creation
 _info "Creating default non-root user"
-arch-chroot /mnt useradd -m -G wheel,storage,video,audio,input $USER_NAME
-printf "$USER_PASSWORD\n$USER_PASSWORD" | arch-chroot /mnt passwd $USER_NAME
+arch-chroot /mnt useradd -m -G wheel,storage,video,audio,input $USER_NAME &> $LOG_FILE
+printf "$USER_PASSWORD\n$USER_PASSWORD" | arch-chroot /mnt passwd $USER_NAME &> $LOG_FILE
 
 pacman_install "sudo"
 arch-chroot /mnt sed -i 's/# %wheel ALL=(ALL) ALL/%wheel ALL=(ALL) ALL' /etc/sudoers
@@ -247,8 +247,9 @@ arch-chroot /mnt sed -i 's/# %wheel ALL=(ALL) ALL/%wheel ALL=(ALL) ALL' /etc/sud
 _info "Configuring bootloader"
 pacman_install "grub efibootmgr"
 
-arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory=$BOOT_DIRECTORY --bootloader-id=grub --recheck
-arch-chroot /mnt grub-mkconfig -o "$BOOT_DIRECTORY/grub/grub.cfg"
+arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory=$BOOT_DIRECTORY --bootloader-id=grub --recheck &> $LOG_FILE
+arch-chroot /mnt mkdir "$BOOT_DIRECTORY/grub" 
+arch-chroot /mnt grub-mkconfig -o "$BOOT_DIRECTORY/grub/grub.cfg" &> $LOG_FILE
 
 # Finished installation message
 echo -e "\n${cyan}Arch Linux installed successfully! :D${reset}\n"
