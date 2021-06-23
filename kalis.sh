@@ -18,9 +18,6 @@ set -uo pipefail
 CONF_FILE="kalis.conf"
 LOG_FILE="kalis.log"
 
-# Source configuration file
-source $CONF_FILE
-
 cyan='\033[1;36m'
 reset='\033[0m'
 
@@ -37,89 +34,27 @@ pacman_install() {
     fi
 }
 
-clear
+# Introduction and config file check
+clear; echo -e "\nHey! Welcome to ${cyan}Kalis (Kustom Arch Linux Install Script)${reset}!\n"
 
-# Welcome and warning message
-echo -e "\nHey! Welcome to ${cyan}Kalis (Kustom Arch Linux Install Script)${reset}!\n"
-echo -e "\033[1;33mWarning!\033[0m This script is in an early development stage and may have some bugs that in"
-echo -e "the worst case scenario could lead to data loss. Proceed at your own risk.\n"
-read -p "Do you want to continue anyways [y/N] " yn
+[ ! -f $CONF_FILE ] && echo -e "Could not find configuration file ${cyan}${CONF_FILE}${reset}.\n" && exit 1
+source $CONF_FILE
 
-case $yn in
-    [Yy]* ) ;;
-    [Nn]* ) exit ;;
-    * ) exit ;;
-esac
-unset yn
+[ -z $INSTALL_DEVICE ] && echo -e "No installation device was specified in the ${cyan}$CONF_FILE${reset} configuration file.\n" && exit 1
 
-# Check variables
-echo -e "\nThe following configuration will be used to autoinstall the system. Please, check everything"
-echo -e "is fine before continuing.\n"
+echo -e "The configuration provided in the ${cyan}$CONF_FILE${reset} will be used to automatically install the"
+echo -e "system on the ${cyan}$INSTALL_DEVICE${reset} device. You may double check it twice before continuing with the"
+echo -e "installation."
 
-if [ -n $DEVICE ]; then 
-    _note "The system will be installed on the ${cyan}$DEVICE${reset} device"
-else
-    _enote "No installation device was specified. Aborting installation...\n"
-    exit 1
-fi
+echo -e "\n${cyan}WARNING${reset} This script will nuke all the data, partitions and other operating systems included,"
+echo -e "in the ${cyan}$INSTALL_DEVICE${reset} device. Just make sure you have a backup of the data"
+echo -e "you want to preserve, if any.\n"
 
-if [ -n $BOOT_DIRECTORY ]; then 
-    _note "Boot/EFI partition will be mounted on the ${cyan}$BOOT_DIRECTORY${reset} directory"
-else
-    _enote "No mount directory was specified for the boot partition. Aborting installation...\n"
-    exit 1
-fi
-
-_note "The swap partition will be ${cyan}$SWAP_PARTITION_SIZE MiB${reset} large"
-
-if [ -z $WIFI_INTERFACE ]; then
-    _note "No wireless network connection will be set up by default"
-else
-    _note "A wireless network connection will be set up with ESSID ${cyan}$WIFI_ESSID${reset} through the ${cyan}$WIFI_INTERFACE${reset} interface"
-fi
-
-if [ $REFLECTOR == true ]; then
-    _note "${cyan}Reflector is enabled${reset} for faster download times"
-else
-    _note "${cyan}Reflector is disabled${reset}. This may increase the time needed to download the system"
-fi
-
-if [ -n $TIMEZONE ]; then
-    _note "Timezone will be set to ${cyan}$TIMEZONE${cyan}"
-else
-    _enote "No timezone specified. ${cyan}/usr/share/zoneinfo/Europe/Madrid${reset} will be used by default"
-fi
-
-echo -en "${cyan}->${reset} The following list of locales will be generated: "
-for locale in "${LOCALES[@]}"; do
-    echo -en "${cyan}$locale${reset}  "
-done
-
-echo -en "\n${cyan}->${reset} The following locale configuration will be set up: "
-for locale_conf in "${LOCALE_CONF[@]}"; do
-    echo -en "${cyan}$locale_conf${reset}  "
-done
-echo
-
-if [ -n "$HOSTNAME" ]; then
-    _note "The hostname for the machine will be set to ${cyan}$HOSTNAME${reset}"
-else
-    _enote "No hostname was specified. Aborting installation...\n"
-    exit 1
-fi
-
-echo
-read -p "Everything fine? Proceed with the installation? [y/N] " yn
-case $yn in
-    [Yy]* ) ;;
-    [Nn]* ) exit ;;
-    * ) exit ;;
-esac
-unset yn
-echo
+read -p "Proceed with the installation? [y/N] " yn; echo
+[[ $yn != "Y" || $yn != "y" || -z $yn ]] && exit
 
 # Initialize logging
-[[ -f $LOG_FILE ]] && rm -f $LOG_FILE
+[ -f $LOG_FILE ] && rm -f $LOG_FILE
 
 # Redirect execution trace output to log file
 exec 5>> $LOG_FILE
@@ -153,38 +88,34 @@ swap_end=$(( $efi_end + $SWAP_PARTITION_SIZE ))MiB
 
 parted -s $DEVICE mklabel gpt \
     mkpart ESP fat32 1MiB ${efi_end} \
-    set 1 boot on \
     set 1 esp on \
     mkpart primary linux-swap ${efi_end} ${swap_end} \
-    mkpart primary ext4 ${swap_end} 100%
+    mkpart root ext4 ${swap_end} 100% &> $LOG_FILE
 
 wipefs $PARTITION_BOOT &> $LOG_FILE
 wipefs $PARTITION_SWAP &> $LOG_FILE
 wipefs $PARTITION_ROOT &> $LOG_FILE
 
-mkfs.vfat -F32 $PARTITION_BOOT &> $LOG_FILE
+mkfs.fat -F32 $PARTITION_BOOT &> $LOG_FILE
 mkswap $PARTITION_SWAP &> $LOG_FILE
 mkfs.ext4 $PARTITION_ROOT &> $LOG_FILE
 
-mounted_boot_dir="/mnt$BOOT_DIRECTORY"
+[ -z $BOOT_DIRECTORY ] && BOOT_DIRECTORY="/efi"
 
 swapon $PARTITION_SWAP
 mount $PARTITION_ROOT /mnt
-mkdir $mounted_boot_dir
-mount $PARTITION_BOOT $mounted_boot_dir
+mkdir "/mnt$BOOT_DIRECTORY"
+mount $PARTITION_BOOT "/mnt$BOOT_DIRECTORY"
 
 # Kernel and system installation
-_info "Installing the Linux kernel"
-
-[ -n "$PACMAN_MIRROR" ] && echo "Server = $PACMAN_MIRROR" > /etc/pacman.d/mirrorlist
+_info "Installing the Linux kernel at $INSTALL_DEVICE"
 
 if [ "$REFLECTOR" == "true" ]; then
     countries=()
     for country in "${REFLECTOR_COUNTRIES[@]}"; do countries+=(--country "${country}"); done
 
     pacman -Sy --noconfirm reflector &> $LOG_FILE
-    reflector "${countries[@]}" --latest 25 --age 24 --protocol https --completion-percent 100 --sort rate \
-        --save /etc/pacman.d/mirrorlist &> $LOG_FILE
+    reflector "${countries[@]}" --latest 25 --age 24 --sort rate --save /etc/pacman.d/mirrorlist &> $LOG_FILE
 fi
 
 sed -i 's/#Color/Color/' /etc/pacman.conf
@@ -200,7 +131,7 @@ _info "Generating file system table"
 genfstab -U /mnt >> /mnt/etc/fstab
 
 _info "Configuring time zone and locales"
-arch-chroot /mnt ln -sf $TIMEZONE /etc/localtime
+arch-chroot /mnt ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
 arch-chroot /mnt hwclock --systohc
 
 for locale in "${LOCALES[@]}"; do
@@ -229,7 +160,7 @@ printf "$ROOT_PASSWORD\n$ROOT_PASSWORD" | arch-chroot /mnt passwd &> $LOG_FILE
 # Network configuration
 _info "Configuring network"
 pacman_install "networkmanager"
-arch-chroot /mnt systemctl enable NetworkManager.service &> $LOG_FILE
+arch-chroot /mnt systemctl --now enable NetworkManager.service &> $LOG_FILE
 
 if [ -n "$WIFI_ESSID" ]; then
     arch-chroot /mnt nmcli device wifi connect "$WIFI_ESSID" password "$WIFI_KEY" &> $LOG_FILE
@@ -247,9 +178,8 @@ arch-chroot /mnt sed -i 's/# %wheel ALL=(ALL) ALL/%wheel ALL=(ALL) ALL' /etc/sud
 _info "Configuring bootloader"
 pacman_install "grub efibootmgr"
 
-arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory=$BOOT_DIRECTORY --bootloader-id=grub --recheck &> $LOG_FILE
-arch-chroot /mnt mkdir "$BOOT_DIRECTORY/grub" 
-arch-chroot /mnt grub-mkconfig -o "$BOOT_DIRECTORY/grub/grub.cfg" &> $LOG_FILE
+arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory=$BOOT_DIRECTORY --bootloader-id=Grub &> $LOG_FILE
+arch-chroot /mnt grub-mkconfig -o "/boot/grub/grub.cfg" &> $LOG_FILE
 
 # Finished installation message
 echo -e "\n${cyan}Arch Linux installed successfully! :D${reset}\n"
