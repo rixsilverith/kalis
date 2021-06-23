@@ -184,3 +184,8 @@ arch-chroot /mnt grub-mkconfig -o "/boot/grub/grub.cfg" &> $LOG_FILE
 # Finished installation message
 echo -e "\n${cyan}Arch Linux installed successfully! :D${reset}\n"
 echo -e "Now, you may reboot your system\n"
+
+# Copy config and log file to /var/log/
+mkdir /mnt/var/log/kalis
+cp $CONF_FILE /mnt/var/log/kalis
+cp $LOG_FILE /mnt/var/log/kalis
