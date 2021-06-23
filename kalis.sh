@@ -83,7 +83,7 @@ timedatectl set-ntp true
 
 # Device partitioning
 _info "Partitioning the installation device"
-efi_end=512MiB
+efi_end="$BOOT_PARTITION_SIZE"MiB
 swap_end=$(( $efi_end + $SWAP_PARTITION_SIZE ))MiB
 
 parted -s $DEVICE mklabel gpt \
@@ -130,22 +130,22 @@ sed -i 's/#TotalDownload/TotalDownload/' /mnt/etc/pacman.conf
 _info "Generating file system table"
 genfstab -U /mnt >> /mnt/etc/fstab
 
-_info "Configuring time zone and locales"
+_info "Configuring timezone and locales"
+[ -z $TIMEZONE ] && TIMEZONE="Europe/Madrid"
+
 arch-chroot /mnt ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
 arch-chroot /mnt hwclock --systohc
 
-for locale in "${LOCALES[@]}"; do
-    sed -i "s/#$locale/$locale/" /mnt/etc/locale.gen
-done
-
-for l_conf in "${LOCALE_CONF[@]}"; do
-    echo -e "$l_conf" >> /mnt/etc/locale.conf
-done
+for locale in "${LOCALES[@]}"; do sed -i "s/#$locale/$locale/" /mnt/etc/locale.gen; done
+for l_conf in "${LOCALE_CONF[@]}"; do echo -e "$l_conf" >> /mnt/etc/locale.conf; done
 
 arch-chroot /mnt locale-gen &> $LOG_FILE
 
 _info "Setting up console keymap and hostname"
-echo $KEYMAP > /mnt/etc/vconsole.conf
+[ -z $KEYMAP ] && KEYMAP="en"
+[ -z $HOSTNAME ] && HOSTNAME="kalis"
+
+echo "KEYMAP=$KEYMAP" > /mnt/etc/vconsole.conf
 echo $HOSTNAME > /mnt/etc/hostname
 
 arch-chroot /mnt cat <<EOF > /etc/hosts
