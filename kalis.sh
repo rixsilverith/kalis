@@ -189,3 +189,6 @@ echo -e "Now, you may reboot your system\n"
 mkdir /mnt/var/log/kalis
 cp $CONF_FILE /mnt/var/log/kalis
 cp $LOG_FILE /mnt/var/log/kalis
+
+# Reboot after installation
+[ "$REBOOT_AFTER_INSTALL" == "true" ] && umount -R /mnt && reboot
