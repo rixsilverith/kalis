@@ -180,7 +180,12 @@ arch-chroot /mnt grub-mkconfig -o "/boot/grub/grub.cfg" &> $LOG_FILE
 
 # Finished installation message
 echo -e "\n${cyan}Arch Linux installed successfully! :D${reset}\n"
-echo -e "Now, you may reboot your system\n"
+
+# Bootstrap dotfiles
+if [ -n "$DOTFILES_BOOTSTRAP_SCRIPT" ]; then
+    _info "Bootstraping dotfiles"
+    curl -s "$DOTFILES_BOOTSTRAP_SCRIPT" | bash
+fi
 
 # Copy config and log file to /var/log/
 mkdir -p /mnt/var/log/kalis
@@ -188,4 +193,5 @@ cp $CONF_FILE /mnt/var/log/kalis
 cp $LOG_FILE /mnt/var/log/kalis
 
 # Reboot after installation
+echo -e "Now, you may reboot your system\n"
 [ "$REBOOT_AFTER_INSTALL" == "true" ] && umount -R /mnt && reboot

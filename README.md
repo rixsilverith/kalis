@@ -10,7 +10,7 @@ how the installation process works and pretty much what each command does. If no
 
 Get the latest [Arch Linux installation medium](https://archlinux.org/download/) and write it to a USB stick. Boot 
 from the installation media as you would do in a usual Arch installation and load your keyboard map with the
-`loadkeys [keymap]` command. For instance, `loadkeys de` will load a german keyboard configuration.
+`loadkeys [keymap]` command. For instance, `loadkeys de-latin1` will load a german keyboard configuration.
 
 Internet connection is required for the overall installation. If you are on a wired connection, you should be just fine.
 Nevertheless, a wireless WIFI connection can be setup by running the `iwctl` utility as 
@@ -29,3 +29,15 @@ vim kalis.conf
 ./kalis.sh
 ```
 Finally, `reboot` the system to end the installation process.
+
+### Bootstraping dotfiles after installation
+
+**Kalis** is capable of bootstraping dotfiles once the installation is done if wanted through a remote script. For this, set the 
+value of the `DOTFILES_BOOTSTRAP_SCRIPT` in the `kalis.conf` file to the URL of the remote script.
+
+[What are dotfiles?](https://medium.com/@webprolific/getting-started-with-dotfiles-43c3602fd789) | [Bootstrap script example](https://raw.githubusercontent.com/rixsilverith/dots/master/bootstrap.sh)
+
+### License
+
+This script is licensed under the GNU General Public License v3.0. For more information, see [LICENSE](LICENSE).
+
