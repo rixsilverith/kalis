@@ -37,7 +37,7 @@ pacman_install() {
 # Introduction and config file check
 clear; echo -e "\nHey! Welcome to ${cyan}Kalis (Kustom Arch Linux Install Script)${reset}!\n"
 
-[ ! -f $CONF_FILE ] && echo -e "Could not find configuration file ${cyan}${CONF_FILE}${reset}.\n" && exit 1
+[ ! -f $CONF_FILE ] && echo -e "Configuration file ${cyan}${CONF_FILE}${reset} does not exist or it can be read.\n" && exit 1
 source $CONF_FILE
 
 [ -z $INSTALL_DEVICE ] && echo -e "No installation device was specified in the ${cyan}$CONF_FILE${reset} configuration file.\n" && exit 1
@@ -87,8 +87,7 @@ efi_end="$BOOT_PARTITION_SIZE"MiB
 swap_end=$(( $efi_end + $SWAP_PARTITION_SIZE ))MiB
 
 parted -s $DEVICE mklabel gpt \
-    mkpart ESP fat32 1MiB ${efi_end} \
-    set 1 esp on \
+    mkpart ESP fat32 1MiB ${efi_end} set 1 esp on \
     mkpart primary linux-swap ${efi_end} ${swap_end} \
     mkpart root ext4 ${swap_end} 100% &> $LOG_FILE
 
@@ -162,9 +161,7 @@ _info "Configuring network"
 pacman_install "networkmanager"
 arch-chroot /mnt systemctl --now enable NetworkManager.service &> $LOG_FILE
 
-if [ -n "$WIFI_ESSID" ]; then
-    arch-chroot /mnt nmcli device wifi connect "$WIFI_ESSID" password "$WIFI_KEY" &> $LOG_FILE
-fi
+[ -n "$WIFI_ESSID" ] && arch-chroot /mnt nmcli device wifi connect "$WIFI_ESSID" password "$WIFI_KEY" &> $LOG_FILE
 
 # User creation
 _info "Creating default non-root user"
@@ -186,7 +183,7 @@ echo -e "\n${cyan}Arch Linux installed successfully! :D${reset}\n"
 echo -e "Now, you may reboot your system\n"
 
 # Copy config and log file to /var/log/
-mkdir /mnt/var/log/kalis
+mkdir -p /mnt/var/log/kalis
 cp $CONF_FILE /mnt/var/log/kalis
 cp $LOG_FILE /mnt/var/log/kalis
 
