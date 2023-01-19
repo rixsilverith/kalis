@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # Kustom Arch Linux Install Script (Kalis)
-# 
+#
 # This is an unofficial Arch Linux install script intended for personal use
 # only. Use it at your own risk.
 #
@@ -25,7 +25,7 @@ _info() { echo -e "\033[1;36m==>\033[0m $1"; }
 _note() { echo -e "\033[1;36m->\033[0m $1"; }
 _enote() { echo -e "\033[1;31m->\033[0m $1"; }
 
-pacman_install() { 
+pacman_install() {
     packages=($1)
     arch-chroot /mnt pacman -Syu --noconfirm --needed ${packages[@]} &> $LOG_FILE
     if [ $? == 1 ]; then
@@ -58,8 +58,8 @@ read -p "Proceed with the installation? [y/N] " yn; echo
 
 # Redirect execution trace output to log file
 exec 5>> $LOG_FILE
-PS4='+ $LINENO: ' 
-BASH_XTRACEFD="5" 
+PS4='+ $LINENO: '
+BASH_XTRACEFD="5"
 
 # Copy stdout and stderr to log file
 exec > >(tee -a $LOG_FILE)
@@ -95,9 +95,9 @@ wipefs $PARTITION_BOOT &> $LOG_FILE
 wipefs $PARTITION_SWAP &> $LOG_FILE
 wipefs $PARTITION_ROOT &> $LOG_FILE
 
-mkfs.fat -F32 $PARTITION_BOOT &> $LOG_FILE
+mkfs.fat -n efi -F32 $PARTITION_BOOT &> $LOG_FILE
 mkswap $PARTITION_SWAP &> $LOG_FILE
-mkfs.ext4 $PARTITION_ROOT &> $LOG_FILE
+mkfs.ext4 -L root $PARTITION_ROOT &> $LOG_FILE
 
 [ -z $BOOT_DIRECTORY ] && BOOT_DIRECTORY="/efi"
 
